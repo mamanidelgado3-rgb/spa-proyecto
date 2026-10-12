@@ -1,0 +1,186 @@
+@page "/reservar"
+@using System.ComponentModel.DataAnnotations
+@using Spa.Api.Data
+@using Spa.Api.Models
+@rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
+@inject AppDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="header-hero">
+    <img src="images/logo.jpeg" alt="Carito Nails Studio" class="hero-logo" />
+    <h1>CARITO NAILS</h1>
+    <p class="subtitle">Reserva & Comprobante Digital</p>
+</div>
+
+<div class="neon-card gold-style" style="max-width: 680px; margin: 0 auto;">
+    @if (reservaExitosa)
+    {
+        <div style="text-align: center; padding: 20px;">
+            <h2 style="color: #00ff7f; margin-bottom: 10px; font-size: 1.6rem;">¡Reserva Guardada Exitosamente!</h2>
+            <p style="color: #fff; font-size: 1.1rem; margin-bottom: 15px;">
+                N° de Comprobante: <strong style="color: var(--gold-neon); font-size: 1.2rem;">@nuevaCita.CodigoComprobante</strong>
+            </p>
+
+            <!-- Tarjeta de Pago QR Yape -->
+            <div style="background: rgba(255, 255, 255, 0.05); border: 2px dashed var(--gold-neon); border-radius: 16px; padding: 20px; margin: 20px 0;">
+                <h3 style="color: #fff; margin-bottom: 5px; font-size: 1.2rem;">Escanea y Paga con Yape</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
+                    Monto total a pagar: <strong style="color: #00ff7f; font-size: 1.3rem;">S/ @nuevaCita.Precio.ToString("F2")</strong>
+                </p>
+
+                <!-- Contenedor del QR de Yape -->
+                <div style="background: #fff; padding: 15px; display: inline-block; border-radius: 12px; box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);">
+                    <img src="images/yape-qr.png" 
+                         onerror="this.onerror=null; this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=YAPE-CARITO-NAILS-980840223';" 
+                         alt="QR Yape Carito Nails" 
+                         style="width: 200px; height: 200px; display: block; object-fit: contain;" />
+                </div>
+
+                <p style="color: #fff; margin-top: 15px; font-size: 0.95rem;">
+                    📲 Titular Yape: <strong>Carito Nails Studio</strong><br />
+                    Número: <strong>980840223</strong>
+                </p>
+            </div>
+
+            <!-- Botón de Envío de Comprobante por WhatsApp -->
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
+                Haz clic en el botón para enviar la confirmación y el comprobante digital por WhatsApp:
+            </p>
+
+            <a href="@urlWhatsAppFinal" target="_blank" class="btn-neon" style="display: inline-block; text-decoration: none; padding: 14px 28px; font-size: 1.1rem; width: 100%;">
+                📲 Abrir Comprobante en WhatsApp (+51 980840223)
+            </a>
+
+            <div style="margin-top: 20px;">
+                <button class="btn-neon" style="background: transparent; border: 1px solid var(--text-muted); color: #fff; font-size: 0.85rem;" @onclick="NuevaReserva">
+                    ➕ Realizar Otra Reserva
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <h2 class="service-title" style="text-align: center; margin-bottom: 5px;">Agendar Cita & Pago</h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 25px; font-size: 0.9rem;">
+            Registra tus datos para guardar tu cita en el sistema y generar tu comprobante digital.
+        </p>
+
+        <EditForm Model="nuevaCita" OnValidSubmit="ProcesarReserva">
+            <DataAnnotationsValidator />
+
+            <div style="margin-bottom: 18px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Nombre Completo</label>
+                <InputText @bind-Value="nuevaCita.ClienteNombre" class="form-control-neon" placeholder="Ej. Ana Lucía Pérez" required />
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">WhatsApp / Teléfono del Cliente</label>
+                <InputText @bind-Value="nuevaCita.ClienteTelefono" class="form-control-neon" placeholder="Ej. 980840223" required />
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Servicio</label>
+                <InputSelect @bind-Value="nuevaCita.Servicio" class="form-control-neon" required>
+                    <option value="">-- Seleccionar Servicio --</option>
+                    <option value="Manicura Rusa">Manicura Rusa — S/ 50.00</option>
+                    <option value="Soft Gel / Acrílicas">Soft Gel / Acrílicas — S/ 90.00</option>
+                    <option value="Nail Art Personalizado">Nail Art Personalizado — S/ 110.00</option>
+                    <option value="Pedicura Spa">Pedicura Spa — S/ 65.00</option>
+                </InputSelect>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Fecha y Hora de la Cita</label>
+                <InputDate Type="InputDateType.DateTimeLocal" @bind-Value="nuevaCita.FechaHora" class="form-control-neon" required />
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Método de Pago</label>
+                <InputSelect @bind-Value="nuevaCita.MetodoPago" class="form-control-neon" required>
+                    <option value="">-- Seleccionar Método de Pago --</option>
+                    <option value="Yape">Yape</option>
+                    <option value="Plin">Plin</option>
+                    <option value="Transferencia BCP / Interbank">Transferencia Bancaria</option>
+                    <option value="Efectivo en Local">Efectivo en Local</option>
+                </InputSelect>
+            </div>
+
+            <button type="submit" class="btn-neon" style="width: 100%; margin-top: 10px;">
+                Guardar Cita & Generar Comprobante
+            </button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private Cita nuevaCita = new Cita { FechaHora = DateTime.Now.AddDays(1) };
+    private string numeroWhatsAppSpa = "51980840223"; // Número de WhatsApp para las pruebas
+    private bool reservaExitosa = false;
+    private string urlWhatsAppFinal = string.Empty;
+
+    private Dictionary<string, decimal> tarifas = new()
+    {
+        { "Manicura Rusa", 50.00m },
+        { "Soft Gel / Acrílicas", 90.00m },
+        { "Nail Art Personalizado", 110.00m },
+        { "Pedicura Spa", 65.00m }
+    };
+
+    private async Task ProcesarReserva()
+    {
+        if (!string.IsNullOrEmpty(nuevaCita.Servicio) && tarifas.ContainsKey(nuevaCita.Servicio))
+        {
+            nuevaCita.Precio = tarifas[nuevaCita.Servicio];
+        }
+        else
+        {
+            nuevaCita.Precio = 50.00m;
+        }
+
+        string codigoComprobante = $"CN-BOLETA-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(100, 999)}";
+        nuevaCita.CodigoComprobante = codigoComprobante;
+
+        // Guardar la cita en SQLite (spa.db)
+        DbContext.Citas.Add(nuevaCita);
+        await DbContext.SaveChangesAsync();
+
+        // Formato del mensaje para WhatsApp
+        string comprobanteDigital = 
+            $"🧾 *COMPROBANTE DE PAGO DIGITAL*%0A" +
+            $"---------------------------------------%0A" +
+            $"💅 *CARITO NAILS STUDIO*%0A" +
+            $"*N° Comprobante:* {codigoComprobante}%0A" +
+            $"*Fecha de Emisión:* {DateTime.Now:dd/MM/yyyy HH:mm}%0A" +
+            $"---------------------------------------%0A" +
+            $"👤 *Cliente:* {nuevaCita.ClienteNombre}%0A" +
+            $"📱 *Teléfono Cliente:* {nuevaCita.ClienteTelefono}%0A" +
+            $"💅 *Servicio:* {nuevaCita.Servicio}%0A" +
+            $"📅 *Fecha de Cita:* {nuevaCita.FechaHora:dd/MM/yyyy hh:mm tt}%0A" +
+            $"💳 *Método de Pago:* {nuevaCita.MetodoPago}%0A" +
+            $"---------------------------------------%0A" +
+            $"💰 *TOTAL PAGADO:* S/ {nuevaCita.Precio:F2}%0A" +
+            $"---------------------------------------%0A" +
+            $"✨ _¡Gracias por tu preferencia! Presenta este comprobante el día de tu cita._";
+
+        urlWhatsAppFinal = $"https://api.whatsapp.com/send?phone={numeroWhatsAppSpa}&text={comprobanteDigital}";
+
+        // Renderizado del estado de confirmación con QR de Yape
+        reservaExitosa = true;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("open", urlWhatsAppFinal, "_blank");
+        }
+        catch
+        {
+            // El usuario tiene la opción de hacer clic en el botón principal si las pestañas flotantes están bloqueadas
+        }
+    }
+
+    private void NuevaReserva()
+    {
+        nuevaCita = new Cita { FechaHora = DateTime.Now.AddDays(1) };
+        reservaExitosa = false;
+    }
+}
